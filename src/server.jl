@@ -50,20 +50,26 @@ function ws_handler(app::App)
   return handler
 end
 
-const default_port = 8000
-const localhost = ip"127.0.0.1"
-
-function serve(s::Server, host = localhost, port = default_port; kws...)
-  @async @errs HTTP.serve(s, host, port; kws...)
+function serve(s::Server; args...)
+  params = Dict(args)
+  port = get(params, :port, 8000)
+  use_https = haskey(params, :ssl)
+  if use_https
+       @async @errs run(s, port=port, ssl=params[:ssl])
+  else
+       @async @errs run(s, port)
+  end
   return
 end
 
-serve(s::Server, port::Integer) = serve(s, localhost, port)
+serve(h::App, port::Integer = default_port) =
+  serve(Server(http_handler(h)), port=port)
 
-serve(h::App, args...; kws...) =
-    serve(Server(http_handler(h)), args...; kws...)
+serve(h::App; args...) =
+  serve(Server(http_handler(h)); args...)
 
-serve(h::App, w::App, host = localhost, port = default_port) =
-    WebSockets.serve(WebSockets.ServerWS(http_handler(h), ws_handler(w)), host, port)
+serve(h::App, w::App, port::Integer = default_port) =
+  serve(Server(http_handler(h), ws_handler(w)), port=port)
 
-serve(h::App, w::App, port::Integer) = serve(h, w, localhost, port)
+serve(h::App, w::App; args...) =
+  serve(Server(http_handler(h), ws_handler(w)); args...)
